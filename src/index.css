@@ -31,6 +31,10 @@ ol, ul {
   margin-bottom: 10px;
 }
 
+.statusoff {
+  display: none;
+}
+
 .square, .highlighted-square {
   background: #fff;
   border: 1px solid #999;

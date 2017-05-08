@@ -2,6 +2,16 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
 
+/**
+ *    Status: complete
+ *    TODO:
+ *    ✓Change status for when it's player O's turn
+ *    ✓calculate win condition
+ *    ✓highlight winning squares
+ *    ✓track when all 64 squares are taken up
+ *    ✓allow game restart
+ *    ✓track turns taken / reset to 0 on game (re)start
+ */
 class Square extends React.Component {
   constructor() {
     super();
@@ -25,6 +35,7 @@ class Board extends React.Component {
     super();
     var squares = createArray(4,4,4);
     this.state = {
+      inProgress: false,
       squares: squares,
       turn: 'X',
       winSquares: null,
@@ -32,11 +43,14 @@ class Board extends React.Component {
   }
 
   clearSquares() {
-    this.setState({squares: createArray(4,4,4), winSquares: null});
+    this.setState({squares: createArray(4,4,4), winSquares: null, inProgress: true});
     this.props.resetCallback();
   }
 
   handleClick(i,j,k) {
+    if (!this.state.inProgress) {
+      return;
+    }
     const squares = this.state.squares.slice();
     if (squares[i][j][k]) {  // square already occupied
       return;
@@ -45,7 +59,8 @@ class Board extends React.Component {
     this.props.callbackIncrTurns();
     var win = getWinSquares(squares, this.state.turn);
     if (win) {
-      this.setState({squares: squares, turn: null, winSquares: win});
+      this.setState({squares: squares, turn: 'X', winSquares: win, inProgress: false});
+      this.props.callbackGameOver();
     } else {
       this.setState({squares: squares, turn: (this.state.turn === 'X' ? 'O' : 'X') });
     }
@@ -64,7 +79,14 @@ class Board extends React.Component {
       <Square
         value={this.state.squares[i][j][k]}
         win={win}
-        onClick={() => { this.handleClick(i,j,k); this.props.onClick()} }
+        onClick={
+          () => {
+            if (!this.state.winSquares) {
+              this.handleClick(i,j,k);
+            }
+            this.props.onClick()
+          }
+        }
       />
     );
   }
@@ -192,18 +214,25 @@ class Game extends React.Component {
       inProgress: false,
       numTurns: 0,
       resetSquares: false,
+      winner: null,
     }
   }
 
   handleClick() {
     if (this.state.inProgress) {
       this.setState({turn: (this.state.turn === 'X' ? 'O' : 'X')});
+    } else {
+      this.setState({turn: 'X'});
     }
   }
 
+  gameOver() {
+    const winnerTurn = this.state.turn;
+    this.setState({turn: 'X', inProgress: false, winner: winnerTurn});
+  }
+
   gameRestart() {
-    //clearBoardSquares();
-    this.setState({turn: 'X', inProgress: true, numTurns: 0, resetSquares: true});
+    this.setState({turn: 'X', inProgress: true, numTurns: 0, resetSquares: true, winner: null});
   }
 
   resetCallback() {
@@ -212,7 +241,11 @@ class Game extends React.Component {
 
   incrTurns() {
     var newNumTurns = this.state.numTurns + 1;
-    this.setState({numTurns: newNumTurns, inProgress: (newNumTurns < 64)});
+    var newInProgress = this.state.inProgress;
+    if (newNumTurns >= 64) {
+      newInProgress = false;
+    }
+    this.setState({numTurns: newNumTurns, inProgress: newInProgress});
   }
 
   render() {
@@ -223,26 +256,23 @@ class Game extends React.Component {
           playerTurn={this.state.turn}
           turnsTaken={this.state.numTurns}
           gameRestart={() => { this.gameRestart(); } }
+          winner={this.state.winner}
         />
         <div className="game-board">
           <Board
             stateCallback="handleClick"
-            onClick={() => this.handleClick()}
+            onClick={
+              () => {
+                if (this.state.inProgress) {
+                  this.handleClick();
+                }
+              }
+            }
             callbackIncrTurns={() => this.incrTurns()}
+            callbackGameOver={() => this.gameOver()}
             reset={this.state.resetSquares}
             resetCallback={() => this.resetCallback()}
           />
-        </div>
-        <div className="game-info">
-          <div>{'Status: incomplete'}</div>
-          <ol>{'TODO'}</ol>
-          <ol>{'✓Change status for when it\'s player O\'s turn'}</ol>
-          <ol>{'✓calculate win condition'}</ol>
-          <ol>{'✓highlight winning squares'}</ol>
-          <ol>{'track when all 64 squares are taken up'}</ol>
-          <ol>{'allow game restart'}</ol>
-          <ol>{'track turns taken / reset to 0 on game (re)start'}</ol>
-          <ol>{'allow undo?'}</ol>
         </div>
       </div>
     );
@@ -256,8 +286,10 @@ class StatusBar extends React.Component {
       <div>
         <button className="button" onClick={() => this.props.gameRestart()}>{message}</button>
         <br/><br/>
+        <div className="status">{this.props.gameInProgress ? 'Game in progress' : 'Game over'}</div>
         <div className="status">{'Who\'s turn? ' + this.props.playerTurn}</div>
-        <div className="statue">{this.props.turnsTaken + ' turns taken'}</div>
+        <div className="status">{this.props.turnsTaken + ' turns taken'}</div>
+        <div className={`status${(!this.props.winner ? 'off' : '')}`}>{'Winner: ' + this.props.winner}</div>
       </div>
     )
   }
@@ -300,6 +332,7 @@ export function getWinSquares(cube, xo) {
 
   // For all 2D planes, look at all 10 possible win conditions (and recube double-counted ones)
   var winCombos = [];
+  // Y-Z plane, 0 level of X axis
   winCombos.push([[0,0,0],[0,0,1],[0,0,2],[0,0,3]]);
   winCombos.push([[0,1,0],[0,1,1],[0,1,2],[0,1,3]]);
   winCombos.push([[0,2,0],[0,2,1],[0,2,2],[0,2,3]]);
@@ -310,7 +343,7 @@ export function getWinSquares(cube, xo) {
   winCombos.push([[0,0,3],[0,1,3],[0,2,3],[0,3,3]]);
   winCombos.push([[0,0,0],[0,1,1],[0,2,2],[0,3,3]]);
   winCombos.push([[0,0,3],[0,1,2],[0,2,1],[0,3,0]]);
-  // next
+  // Y-Z plane, 1 level of X axis
   winCombos.push([[1,0,0],[1,0,1],[1,0,2],[1,0,3]]);
   winCombos.push([[1,1,0],[1,1,1],[1,1,2],[1,1,3]]);
   winCombos.push([[1,2,0],[1,2,1],[1,2,2],[1,2,3]]);
@@ -321,7 +354,7 @@ export function getWinSquares(cube, xo) {
   winCombos.push([[1,0,3],[1,1,3],[1,2,3],[1,3,3]]);
   winCombos.push([[1,0,0],[1,1,1],[1,2,2],[1,3,3]]);
   winCombos.push([[1,0,3],[1,1,2],[1,2,1],[1,3,0]]);
-  // next
+  // Y-Z plane, 2 level of X axis
   winCombos.push([[2,0,0],[2,0,1],[2,0,2],[2,0,3]]);
   winCombos.push([[2,1,0],[2,1,1],[2,1,2],[2,1,3]]);
   winCombos.push([[2,2,0],[2,2,1],[2,2,2],[2,2,3]]);
@@ -332,7 +365,7 @@ export function getWinSquares(cube, xo) {
   winCombos.push([[2,0,3],[2,1,3],[2,2,3],[2,3,3]]);
   winCombos.push([[2,0,0],[2,1,1],[2,2,2],[2,3,3]]);
   winCombos.push([[2,0,3],[2,1,2],[2,2,1],[2,3,0]]);
-  // next
+  // Y-Z plane, 3 level of X axis
   winCombos.push([[3,0,0],[3,0,1],[3,0,2],[3,0,3]]);
   winCombos.push([[3,1,0],[3,1,1],[3,1,2],[3,1,3]]);
   winCombos.push([[3,2,0],[3,2,1],[3,2,2],[3,2,3]]);
@@ -343,47 +376,47 @@ export function getWinSquares(cube, xo) {
   winCombos.push([[3,0,3],[3,1,3],[3,2,3],[3,3,3]]);
   winCombos.push([[3,0,0],[3,1,1],[3,2,2],[3,3,3]]);
   winCombos.push([[3,0,3],[3,1,2],[3,2,1],[3,3,0]]);
-  // next
+  // X-Y plane, 0 level of Z axis - skip intersection with Y-Z
   winCombos.push([[0,0,0],[1,0,0],[2,0,0],[3,0,0]]);
   winCombos.push([[0,1,0],[1,1,0],[2,1,0],[3,1,0]]);
   winCombos.push([[0,2,0],[1,2,0],[2,2,0],[3,2,0]]);
   winCombos.push([[0,3,0],[1,3,0],[2,3,0],[3,3,0]]);
   winCombos.push([[0,0,0],[1,1,0],[2,2,0],[3,3,0]]);
   winCombos.push([[0,3,0],[1,2,0],[2,1,0],[3,0,0]]);
-  // next
+  // X-Y plane, 1 level of Z axis - skip intersection with Y-Z
   winCombos.push([[0,0,1],[1,0,1],[2,0,1],[3,0,1]]);
   winCombos.push([[0,1,1],[1,1,1],[2,1,1],[3,1,1]]);
   winCombos.push([[0,2,1],[1,2,1],[2,2,1],[3,2,1]]);
   winCombos.push([[0,3,1],[1,3,1],[2,3,1],[3,3,1]]);
   winCombos.push([[0,0,1],[1,1,1],[2,2,1],[3,3,1]]);
   winCombos.push([[0,3,1],[1,2,1],[2,1,1],[3,0,1]]);
-  // next
+  // X-Y plane, 2 level of Z axis - skip intersection with Y-Z
   winCombos.push([[0,0,2],[1,0,2],[2,0,2],[3,0,2]]);
   winCombos.push([[0,1,2],[1,1,2],[2,1,2],[3,1,2]]);
   winCombos.push([[0,2,2],[1,2,2],[2,2,2],[3,2,2]]);
   winCombos.push([[0,3,2],[1,3,2],[2,3,2],[3,3,2]]);
   winCombos.push([[0,0,2],[1,1,2],[2,2,2],[3,3,2]]);
   winCombos.push([[0,3,2],[1,2,2],[2,1,2],[3,0,2]]);
-  // next
+  // X-Y plane, 3 level of Z axis - skip intersection with Y-Z
   winCombos.push([[0,0,3],[1,0,3],[2,0,3],[3,0,3]]);
   winCombos.push([[0,1,3],[1,1,3],[2,1,3],[3,1,3]]);
   winCombos.push([[0,2,3],[1,2,3],[2,2,3],[3,2,3]]);
   winCombos.push([[0,3,3],[1,3,3],[2,3,3],[3,3,3]]);
   winCombos.push([[0,0,3],[1,1,3],[2,2,3],[3,3,3]]);
   winCombos.push([[0,3,3],[1,2,3],[2,1,3],[3,0,3]]);
-  // next
+  // X-Z plane, 0 level of Y plane.  Diagonals only - skip intersection with other planes
   winCombos.push([[0,0,0],[1,0,1],[2,0,2],[3,0,3]]);
   winCombos.push([[0,0,3],[1,0,2],[2,0,1],[3,0,0]]);
-  // next
+  // X-Z plane, 1 level of Y plane.  Diagonals only - skip intersection with other planes
   winCombos.push([[0,1,0],[1,1,1],[2,1,2],[3,1,3]]);
   winCombos.push([[0,1,3],[1,1,2],[2,1,1],[3,1,0]]);
-  // next
+  // X-Z plane, 2 level of Y plane.  Diagonals only - skip intersection with other planes
   winCombos.push([[0,2,0],[1,2,1],[2,2,2],[3,2,3]]);
   winCombos.push([[0,2,3],[1,2,2],[2,2,1],[3,2,0]]);
-  // next
+  // X-Z plane, 3 level of Y plane.  Diagonals only - skip intersection with other planes
   winCombos.push([[0,3,0],[1,3,1],[2,3,2],[3,3,3]]);
   winCombos.push([[0,3,3],[1,3,2],[2,3,1],[3,3,0]]);
-  // next
+  // diagonals of cube (corner to corner, 4 lines that touch all 8 corners)
   winCombos.push([[0,0,0],[1,1,1],[2,2,2],[3,3,3]]);
   winCombos.push([[0,0,3],[1,1,2],[2,2,1],[3,3,0]]);
   winCombos.push([[3,0,3],[2,1,2],[1,2,1],[0,3,0]]);
