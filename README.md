@@ -1,9 +1,25 @@
+3D Tic-Tac-Toe (four in a row)
+------------------------------
+
+### Installation
+
+$ npm install
+
+### Running
+
+$ npm start
+
+### Screenshot
+
+[[ src/screenshot.png | height = 200px ]]
+
+### References
+
 This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app).
 
-This project was based on the tic-tac-toe [react tutorial]
-(https://facebook.github.io/react/tutorial/tutorial.html#).
+This project was based on the tic-tac-toe [react tutorial](https://facebook.github.io/react/tutorial/tutorial.html).
 
-## 3D tic-tac-toe...something; FOUR in a row!
+### How to play
 
 - Two players, X and O
 - Players alternate taking turns on the same device
