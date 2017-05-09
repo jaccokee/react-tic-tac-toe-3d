@@ -11,7 +11,7 @@ $ npm start
 
 ### Screenshot
 
-[[ src/screenshot.png | height = 200px ]]
+![screenshot](src/screenshot.png)
 
 ### References
 
